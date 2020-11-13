@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 //Agrego esta weas de librerias
 import 'package:barcode_scan/barcode_scan.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() => runApp(MaterialApp(
       theme: ThemeData(primarySwatch: Colors.green),
@@ -30,7 +31,7 @@ class _MyHomePageState extends State<MyHomePage> {
               : Column(
                   children: [
                     Text('Contenido: ${_scanResult.rawContent}'),
-                    Text('Formato: ${_scanResult.format.toString()}'),
+                    Text('Estado: ${_validado}'),
                   ],
                 )),
       floatingActionButton: FloatingActionButton(
@@ -46,34 +47,36 @@ class _MyHomePageState extends State<MyHomePage> {
 //Método para escanear el codigo Qr
   Future<void> _scanCode() async {
     var result = await BarcodeScanner.scan();
-    setState(() {
-      _scanResult = result;
-    });
+    //Ahora vamos a mandar el codigo escaneado con el método GET a nuestr BD en la Nube.
+    recibirRespuestaGET(result.toString());
+
+    if (this._id == result.toString() && this._estado == "CONFIRMADO") {
+      setState(() {
+        _validado = "CONFIRMADO";
+      });
+    } else {
+      setState(() {
+        _validado = "DENEGADO";
+      });
+    }
   }
 
-//Con este método hacemos una peticion al API Rest
-  Future<http.Response> fetchPost() {
-    return http.get('https://lpooii-grupo4.herokuapp.com/getTickets');
-    //Despues de esto quisiera leer una lista JSON en un bucle y si no existe nada
-    //Entonces no puede pasar pero si coincide el codigo con el _id y est CONFIRMADO
-    //Entonces si pasa a ver la pelicula :'v
+  Future<void> recibirRespuestaGET(String result) async {
+    final respuesta = await http
+        .get('https://lpooii-grupo4.herokuapp.com/getTicket/?id=' + result);
+    if (respuesta.statusCode == 200) {
+      setState(() {
+        var parsedJson = json.decode(respuesta.body);
+        _id = parsedJson["_id"];
+        _estado = parsedJson["estado"];
+      });
+    } else {
+      throw Exception("Fallo");
+    }
   }
-}
 
-//Con esta wea obtenemos la info de la API
-class Ticket {
+//Lo puse aca porque soy TROLL :'v
   String _id;
   String _estado;
-
-  Ticket(this._id, this._estado);
-
-  get getId => this._id;
-  get getEstado => this._estado;
-
-  set setId(String value) => this._id = value;
-  set setEstado(String value) => this._estado = value;
-
-  factory Ticket.fromJSON(Map<String, dynamic> json) {
-    return Ticket(json['_id'].toString(), json['estado'].toString());
-  }
+  String _validado = "";
 }
